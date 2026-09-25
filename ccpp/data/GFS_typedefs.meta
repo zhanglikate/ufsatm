@@ -2580,7 +2580,15 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_global_cellular_automata .or. flag_for_land_coupling .or. do_fire_coupling)
+  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling .or. flag_for_global_cellular_automata .or. flag_for_land_coupling)
+[rain_cplchp]
+  standard_name = lwe_thickness_of_precipitation_amount_for_chemcoupling
+  long_name = total rain precipitation chem package
+  units = m
+  dimensions = (horizontal_dimension)
+  type = real
+  kind = kind_phys
+  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling .or. flag_for_global_cellular_automata)
 [rainc_cpl]
   standard_name = cumulative_lwe_thickness_of_convective_precipitation_amount_for_coupling
   long_name = total convective precipitation
@@ -2588,7 +2596,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = (flag_for_surface_flux_coupling .or. flag_for_chemistry_coupling .or. flag_for_land_coupling .or. do_fire_coupling)
+  active = (flag_for_surface_flux_coupling .or. flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling .or. flag_for_land_coupling)
 [snow_cpl]
   standard_name = cumulative_lwe_thickness_of_snow_amount_for_coupling
   long_name = total snow precipitation
@@ -2596,7 +2604,15 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_global_cellular_automata .or. flag_for_land_coupling .or. do_fire_coupling)
+  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling .or. flag_for_global_cellular_automata .or. flag_for_land_coupling)
+[snow_cplchp]
+  standard_name = lwe_thickness_of_snow_amount_for_chemcoupling
+  long_name = total snow precipitation chem package
+  units = m
+  dimensions = (horizontal_dimension)
+  type = real
+  kind = kind_phys
+  active = (flag_for_surface_flux_coupling .or. flag_for_stochastic_physics_perturbations .or. flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling .or. flag_for_global_cellular_automata)
 [dusfc_cpl]
   standard_name = cumulative_surface_x_momentum_flux_for_coupling_multiplied_by_timestep
   long_name = cumulative sfc x momentum flux multiplied by timestep
@@ -3227,7 +3243,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = ((control_for_microphysics_scheme == identifier_for_thompson_microphysics_scheme .or. control_for_microphysics_scheme == identifier_for_tempo_microphysics_scheme) .and. (flag_for_aerosol_physics .or. do_merra2_aerosol_awareness))
+  active = ((control_for_microphysics_scheme == identifier_for_thompson_microphysics_scheme .or. control_for_microphysics_scheme == identifier_for_tempo_microphysics_scheme) .and. (flag_for_aerosol_physics .or. do_merra2_aerosol_awareness .or. do_gocart_aerosol_awareness))
 [nifa2d]
   standard_name = tendency_of_nonhygroscopic_ice_nucleating_aerosols_at_surface_adjacent_layer
   long_name = instantaneous ice-friendly sfc aerosol source
@@ -3235,7 +3251,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = ((control_for_microphysics_scheme == identifier_for_thompson_microphysics_scheme .or. control_for_microphysics_scheme == identifier_for_tempo_microphysics_scheme) .and. (flag_for_aerosol_physics .or. do_merra2_aerosol_awareness))
+  active = ((control_for_microphysics_scheme == identifier_for_thompson_microphysics_scheme .or. control_for_microphysics_scheme == identifier_for_tempo_microphysics_scheme) .and. (flag_for_aerosol_physics .or. do_merra2_aerosol_awareness .or. do_gocart_aerosol_awareness))
 [ebu_smoke]
   standard_name = ebu_smoke
   long_name = buffer of vertical fire emission
@@ -3363,7 +3379,7 @@
   dimensions = (horizontal_dimension)
   type = real
   kind = kind_phys
-  active = (flag_for_chemistry_coupling)
+  active = (flag_for_chemistry_coupling .or. flag_for_chemistry_package_coupling) 
 [qci_conv]
   standard_name = convective_cloud_condesate_after_rainout
   long_name = convective cloud condesate after rainout
@@ -3814,6 +3830,12 @@
 [cplchm]
   standard_name = flag_for_chemistry_coupling
   long_name = flag controlling cplchm collection (default off)
+  units = flag
+  dimensions = ()
+  type = logical
+[cplchp]
+  standard_name = flag_for_chemistry_package_coupling
+  long_name = flag controlling cplchp collection (default off)
   units = flag
   dimensions = ()
   type = logical
@@ -5153,6 +5175,12 @@
 [mraerosol]
   standard_name = do_merra2_aerosol_awareness
   long_name = flag for merra2 aerosol-aware physics for example the thompson microphysics
+  units = flag
+  dimensions = ()
+  type = logical
+[gtaerosol]
+  standard_name = do_gocart_aerosol_awareness
+  long_name = flag for gocart aerosol-aware physics for example the thompson microphysics
   units = flag
   dimensions = ()
   type = logical
@@ -7300,6 +7328,12 @@
   units = index
   dimensions = ()
   type = integer
+[wetdep_ls_cpl]
+  standard_name = gocart_wetdep_ls_opt
+  long_name = gocart large scale wet deposition option
+  units = index
+  dimensions = ()
+  type = integer
 [mix_chem]
   standard_name = do_planetary_boundary_layer_smoke_mixing
   long_name = flag for rrfs smoke mynn tracer mixing
@@ -8465,6 +8499,13 @@
 [aer_nm]
   standard_name = mass_mixing_ratio_of_aerosol_from_gocart_or_merra2
   long_name = mass mixing ratio of aerosol from gocart or merra2
+  units = kg kg-1
+  dimensions = (horizontal_dimension,vertical_layer_dimension,number_of_aerosol_tracers_MG)
+  type = real
+  kind = kind_phys
+[aer_mr]
+  standard_name = mass_mixing_ratio_of_aerosol_from_gocart_or_merra2_mp
+  long_name = mass mixing ratio of aerosol from gocart or merra2 for mp
   units = kg kg-1
   dimensions = (horizontal_dimension,vertical_layer_dimension,number_of_aerosol_tracers_MG)
   type = real

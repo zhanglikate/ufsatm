@@ -571,8 +571,10 @@ module GFS_typedefs
 
 !--- outgoing accumulated quantities
     real (kind=kind_phys), pointer :: rain_cpl  (:)  => null()   !< total rain precipitation
+    real (kind=kind_phys), pointer :: rain_cplchp  (:)  => null()!< total rain precipitation for chem package
     real (kind=kind_phys), pointer :: rainc_cpl (:)  => null()   !< convective rain precipitation
     real (kind=kind_phys), pointer :: snow_cpl  (:)  => null()   !< total snow precipitation
+    real (kind=kind_phys), pointer :: snow_cplchp  (:)  => null()!< total snow precipitation for chem package
     real (kind=kind_phys), pointer :: dusfc_cpl (:)  => null()   !< sfc u momentum flux
     real (kind=kind_phys), pointer :: dvsfc_cpl (:)  => null()   !< sfc v momentum flux
     real (kind=kind_phys), pointer :: dtsfc_cpl (:)  => null()   !< sfc sensible heat flux
@@ -792,6 +794,7 @@ module GFS_typedefs
     logical              :: cplwav2atm      !< default no wav->atm coupling
     logical              :: cplaqm          !< default no cplaqm collection
     logical              :: cplchm          !< default no cplchm collection
+    logical              :: cplchp          !< default no cplchp collection
     logical              :: cpllnd          !< default no cpllnd collection
     logical              :: cpllnd2atm      !< default no lnd->atm coupling
     logical              :: rrfs_sd         !< default no rrfs_sd collection
@@ -1069,6 +1072,7 @@ module GFS_typedefs
     !--- Thompson's microphysical parameters
     logical              :: ltaerosol       !< flag for aerosol version
     logical              :: mraerosol       !< flag for merra2_aerosol_aware
+    logical              :: gtaerosol       !< flag for gocart_aerosol_aware
     logical              :: lthailaware     !< flag for TEMPO hail-aware
     logical              :: lradar          !< flag for radar reflectivity
     real(kind=kind_phys) :: nsfullradar_diag!< seconds between resetting radar reflectivity calculation
@@ -1664,7 +1668,7 @@ module GFS_typedefs
     logical              :: enh_mix
     real(kind=kind_phys) :: smoke_dir_fdb_coef(7) !< smoke & dust direct feedbck coefficents
     real(kind=kind_phys) :: smoke_conv_wet_coef(3) !< smoke & dust convective wet removal coefficents
-
+    integer              :: wetdep_ls_cpl  !< large scale wetdepostion, 0: Thompson inline, 1: GOCART offline 
 !--- debug flags
     logical              :: debug
     logical              :: pre_rad         !< flag for testing purpose
@@ -1840,6 +1844,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: in_nm    (:,:)   => null()  !< IN number concentration
     real (kind=kind_phys), pointer :: ccn_nm   (:,:)   => null()  !< CCN number concentration
     real (kind=kind_phys), pointer :: aer_nm   (:,:,:) => null()  !< GOCART aerosol climo
+    real (kind=kind_phys), pointer :: aer_mr   (:,:,:) => null()  !< GOCART aerosol climo for mp
     real (kind=kind_phys), pointer :: tau_amf  (:    ) => null()  !< nonsta-gw monthly data
 
     integer,               pointer :: imap     (:)     => null()  !< map of local index ix to global index i for this block
@@ -3082,14 +3087,18 @@ module GFS_typedefs
        endif
     endif
 
-    if (Model%cplflx .or. Model%do_sppt .or. Model%cplchm .or. Model%ca_global .or. Model%cpllnd .or. Model%cpl_fire) then
+    if (Model%cplflx .or. Model%do_sppt .or. Model%cplchm .or. Model%cplchp .or. Model%ca_global .or. Model%cpllnd .or. Model%cpl_fire) then
       allocate (Coupling%rain_cpl (IM))
       allocate (Coupling%snow_cpl (IM))
+      allocate (Coupling%rain_cplchp (IM))
+      allocate (Coupling%snow_cplchp (IM))
       Coupling%rain_cpl = clear_val
       Coupling%snow_cpl = clear_val
+      Coupling%rain_cplchp = clear_val
+      Coupling%snow_cplchp = clear_val
     endif
 
-    if (Model%cplflx .or. Model%cplchm .or. Model%cplwav .or. Model%cpl_fire) then
+    if (Model%cplflx .or. Model%cplchm .or. Model%cplchp .or. Model%cplwav .or. Model%cpl_fire) then
       !--- instantaneous quantities
       allocate (Coupling%u10mi_cpl (IM))
       allocate (Coupling%v10mi_cpl (IM))
@@ -3098,7 +3107,7 @@ module GFS_typedefs
       Coupling%v10mi_cpl = clear_val
     endif
 
-    if (Model%cplflx .or. Model%cplchm .or. Model%cpllnd) then
+    if (Model%cplflx .or. Model%cplchm .or. Model%cplchp .or. Model%cpllnd) then
       !--- instantaneous quantities
       allocate (Coupling%tsfci_cpl (IM))
       Coupling%tsfci_cpl = clear_val
@@ -3283,7 +3292,7 @@ module GFS_typedefs
     endif
 
     ! -- Aerosols coupling options
-    if (Model%cplchm) then
+    if (Model%cplchm .or. Model%cplchp) then
       !--- outgoing instantaneous quantities
       allocate (Coupling%ushfsfci  (IM))
       ! -- instantaneous 3d fluxes of nonconvective ice and liquid precipitations
@@ -3294,7 +3303,7 @@ module GFS_typedefs
       Coupling%pfl_lsan  = clear_val
     endif
 
-    if (Model%cplchm .or. Model%cplflx .or. Model%cpllnd .or. Model%cpl_fire) then
+    if (Model%cplchm .or. Model%cplchp .or. Model%cplflx .or. Model%cpllnd .or. Model%cpl_fire) then
       !--- accumulated convective rainfall
       allocate (Coupling%rainc_cpl (IM))
       Coupling%rainc_cpl = clear_val
@@ -3351,7 +3360,7 @@ module GFS_typedefs
     !--- needed for Thompson's aerosol option
     if((Model%imp_physics == Model%imp_physics_thompson .or. &
          Model%imp_physics == Model%imp_physics_tempo) .and. &
-         (Model%ltaerosol .or. Model%mraerosol)) then
+         (Model%ltaerosol .or. Model%mraerosol .or. Model%gtaerosol)) then
       allocate (Coupling%nwfa2d (IM))
       allocate (Coupling%nifa2d (IM))
       Coupling%nwfa2d   = clear_val
@@ -3516,6 +3525,7 @@ module GFS_typedefs
     logical              :: cplwav2atm     = .false.         !< default no cplwav2atm coupling
     logical              :: cplaqm         = .false.         !< default no cplaqm collection
     logical              :: cplchm         = .false.         !< default no cplchm collection
+    logical              :: cplchp         = .false.         !< default no cplchp collection
     logical              :: cpllnd         = .false.         !< default no cpllnd collection
     logical              :: cpllnd2atm     = .false.         !< default no cpllnd2atm coupling
     logical              :: rrfs_sd        = .false.         !< default no rrfs_sd collection
@@ -3708,6 +3718,7 @@ module GFS_typedefs
     !--- Thompson microphysical parameters
     logical              :: ltaerosol      = .false.            !< flag for aerosol version
     logical              :: mraerosol      = .false.            !< flag for merra2_aerosol_aware
+    logical              :: gtaerosol      = .false.            !< flag for gocart_aerosol_aware
     logical              :: lthailaware    = .false.            !< flag for TEMPO hail-aware
     logical              :: lradar         = .false.            !< flag for radar reflectivity
     real(kind=kind_phys) :: nsfullradar_diag  = -999.0          !< seconds between resetting radar reflectivity calculation, set to <0 for every time step
@@ -4177,6 +4188,7 @@ module GFS_typedefs
 !--- aerosol scavenging factors
     integer, parameter :: max_scav_factors = 183
     character(len=40)  :: fscav_aero(max_scav_factors) = ''
+    integer              :: wetdep_ls_cpl  = 1
 
     real(kind=kind_phys) :: radar_tten_limits(2) = (/ limit_unspecified, limit_unspecified /)
     integer :: itime
@@ -4210,7 +4222,7 @@ module GFS_typedefs
                                tend_opt_mp, tend_opt_stoch,                                 &
                           !--- coupling parameters
                                cplflx, cplice, cplocn2atm, cplwav, cplwav2atm, cplaqm,      &
-                               cplchm, cpllnd, cpllnd2atm,                                  &
+                               cplchm, cplchp, cpllnd, cpllnd2atm,                          &
                                cpl_fire, rrfs_sd, use_cice_alb,                             &
 #ifdef IDEA_PHYS
                                lsidea, weimer_model, f107_kp_size, f107_kp_interval,        &
@@ -4235,7 +4247,7 @@ module GFS_typedefs
                                lfnc_p0, iovr_convcld, doGP_sgs_cnv, doGP_sgs_mynn,          &
                                rrtmgp_lw_phys_blksz, rrtmgp_sw_phys_blksz,                  &
                           ! IN CCN forcing
-                               iccn, mraerosol,                                             &
+                               iccn, mraerosol, gtaerosol,                                  &
                           !--- microphysical parameterizations
                                imp_physics, psautco, prautco, evpco, wminco,                &
                                fprcp, pdfflag, mg_dcs, mg_qcvar, mg_ts_auto_ice, mg_rhmini, &
@@ -4348,7 +4360,7 @@ module GFS_typedefs
                                max_lon, max_lat, min_lon, min_lat, rhcmax, huge,            &
                                phys_version,                                                &
                           !--- aerosol scavenging factors ('name:value' string array)
-                               fscav_aero,                                                  &
+                               fscav_aero, wetdep_ls_cpl,                                   &
                           !--- RRFS-SD namelist
                                dust_drylimit_factor, dust_moist_correction, dust_moist_opt, &
                                dust_alpha, dust_gamma, wetdep_ls_alpha,                     &
@@ -4662,6 +4674,7 @@ module GFS_typedefs
     Model%cplwav2atm       = cplwav2atm
     Model%cplaqm           = cplaqm
     Model%cplchm           = cplchm .or. cplaqm
+    Model%cplchp           = cplchp
     Model%cpllnd           = cpllnd
     Model%cpllnd2atm       = cpllnd2atm
     Model%use_cice_alb     = use_cice_alb
@@ -4813,6 +4826,9 @@ module GFS_typedefs
       ntrcaer = ntrcaerm
     else if (iaer/1000 == 2) then
       ntrcaer = ntrcaerm
+      if (mraerosol) then
+      Model%iaerclm = .true.
+      endif
     else
       ntrcaer = 1
     endif
@@ -4978,9 +4994,10 @@ module GFS_typedefs
 !--- Thompson MP parameters
     Model%ltaerosol        = ltaerosol
     Model%mraerosol        = mraerosol
+    Model%gtaerosol        = gtaerosol
     Model%lthailaware      = lthailaware
-    if (Model%ltaerosol .and. Model%mraerosol) then
-      write(0,*) 'Logic error: Only one Thompson aerosol option can be true, either ltaerosol or mraerosol)'
+    if (Model%ltaerosol .and. Model%mraerosol .and. Model%gtaerosol) then
+      write(0,*) 'Logic error: Only one Thompson aerosol option can be true, either ltaerosol or mraerosol gtaerosol)'
       stop
     end if
     Model%lradar           = lradar
@@ -5006,10 +5023,10 @@ module GFS_typedefs
 
 !--- TEMPO MP parameters
     ! DJS to Anders: Maybe we put more of these nml options into the TEMPO configuration type?
-    Model%tempo_cfg%aerosol_aware = (ltaerosol .or. mraerosol)
+    Model%tempo_cfg%aerosol_aware = (ltaerosol .or. mraerosol .or. gtaerosol)
     Model%tempo_cfg%hail_aware    = lthailaware
-    if (Model%ltaerosol .and. Model%mraerosol) then
-       write(0,*) 'Logic error: Only one TEMPO aerosol option can be true, either ltaerosol or mraerosol)'
+    if (Model%ltaerosol .and. Model%mraerosol .and. Model%gtaerosol) then
+       write(0,*) 'Logic error: Only one TEMPO aerosol option can be true, either ltaerosol or mraerosol or gtaerosol)'
        stop
     end if
 
@@ -5232,6 +5249,8 @@ module GFS_typedefs
     Model%oz_phys          = oz_phys
     Model%oz_phys_2015     = oz_phys_2015
     Model%h2o_phys         = h2o_phys
+!--- gcafs or UFS-Chem
+    Model%wetdep_ls_cpl    = wetdep_ls_cpl 
 
     Model%pdfcld            = pdfcld
     Model%shcnvcw           = shcnvcw
@@ -5610,7 +5629,7 @@ module GFS_typedefs
     allocate (Model%dtidx(Model%ntracp100,Model%nprocess))
     Model%dtidx = physics_no_tracer
 
-    if(Model%ntchm>0) then
+    if(Model%cplchm .and. Model%ntchm>0) then
 ! GFS_v16 n=9 "no2" n=10 "no" n=11 "o3" (n=8,9, 10 in PBL resp.)
       Model%ntno2 = get_physics_tracer_index('no2', Model)  ! n=11 (index 10 "no2" in PBL scheme) GFS_v17_p8
       Model%ntno  = get_physics_tracer_index('no', Model)   ! n=12 (index 11 "no"  in PBL scheme) GFS_v17_p8
@@ -6475,6 +6494,7 @@ module GFS_typedefs
       if (Model%me == Model%master) print *,' Using Thompson/TEMPO double moment microphysics', &
                                           ' ltaerosol = ',Model%ltaerosol, &
                                           ' mraerosol = ',Model%mraerosol, &
+                                          ' gtaerosol = ',Model%gtaerosol, &
                                           ' lthailaware = ',Model%lthailaware, &
                                           ' ttendlim =',Model%ttendlim, &
                                           ' ext_diag_thompson =',Model%ext_diag_thompson, &
@@ -6760,6 +6780,7 @@ module GFS_typedefs
     !--- Identify number and starting/ending indices of both
     !--- prognostic and diagnostic chemistry tracers.
     !--- Each tracer set is assumed to be contiguous.
+    use tracer_manager_mod, only: get_tracer_index
 
     !--- interface variables
     class(GFS_control_type) :: Model
@@ -6933,6 +6954,7 @@ module GFS_typedefs
       print *, ' cplwav2atm        : ', Model%cplwav2atm
       print *, ' cplaqm            : ', Model%cplaqm
       print *, ' cplchm            : ', Model%cplchm
+      print *, ' cplchp            : ', Model%cplchp
       print *, ' cpllnd            : ', Model%cpllnd
       print *, ' cpllnd2atm        : ', Model%cpllnd2atm
       print *, ' rrfs_sd           : ', Model%rrfs_sd
@@ -6946,6 +6968,7 @@ module GFS_typedefs
         print*,'ichoice            : ', Model%ichoice
         print*,'gf_coldstart       : ', Model%gf_coldstart
       endif
+
       if(model%rrfs_sd) then
         print *, ' '
         print *, 'smoke parameters'
@@ -7076,6 +7099,7 @@ module GFS_typedefs
         print *, ' Thompson microphysical parameters'
         print *, ' ltaerosol         : ', Model%ltaerosol
         print *, ' mraerosol         : ', Model%mraerosol
+        print *, ' gtaerosol         : ', Model%gtaerosol
         print *, ' lthailaware       : ', Model%lthailaware
         print *, ' lradar            : ', Model%lradar
         print *, ' nsfullradar_diag  : ', Model%nsfullradar_diag
@@ -7484,6 +7508,9 @@ module GFS_typedefs
       print *, ' '
       print *, 'lightning threat indexes'
       print *, ' lightning_threat  : ', Model%lightning_threat
+      if( Model%cplchm) then
+       print *, ' wetdep_ls_cpl  : ', Model%wetdep_ls_cpl
+      endif
     endif
 
   end subroutine control_print
@@ -7645,6 +7672,9 @@ module GFS_typedefs
     allocate (Tbd%aer_nm  (IM,Model%levs,ntrcaer))
     Tbd%aer_nm = clear_val
 
+    allocate (Tbd%aer_mr  (IM,Model%levs,ntrcaer))
+    Tbd%aer_mr = clear_val
+
 !--- tau_amf for  NGWs
     allocate (Tbd%tau_amf(im) )
     Tbd%tau_amf = clear_val
@@ -7667,7 +7697,7 @@ module GFS_typedefs
     Tbd%acvb = clear_val
     Tbd%acvt = clear_val
 
-    if (Model%cplflx .or. Model%cplchm .or. Model%cpllnd) then
+    if (Model%cplflx .or. Model%cplchm .or. Model%cplchp .or. Model%cpllnd) then
       allocate (Tbd%drain_cpl (IM))
       allocate (Tbd%dsnow_cpl (IM))
       Tbd%drain_cpl = clear_val
