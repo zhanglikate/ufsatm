@@ -84,6 +84,7 @@ list(APPEND fv3_io_srcs
   io/fv3atm_common_io.F90
   io/fv3atm_clm_lake_io.F90
   io/fv3atm_rrfs_sd_io.F90
+  io/fv3atm_catchem_io.F90
   io/fv3atm_sfc_io.F90
   io/fv3atm_oro_io.F90
   io/fv3atm_history_io.F90
